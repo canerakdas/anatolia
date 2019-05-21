@@ -12,6 +12,540 @@
   <link rel="stylesheet" href="static/css/skeleton.css">
   <link rel="stylesheet" href="static/css/main.css">
   <link href="https://fonts.googleapis.com/css?family=Open+Sans|Roboto+Condensed" rel="stylesheet">
+  <script src="static/js/ccNetViz.js"></script>
+
+  <script type="text/javascript">
+    window.addEventListener('load', function () {
+      function drawLogo(c, settings, t) {
+        const nodes = [];
+        const edges = [];
+
+        const x1 = settings.nodeFrequency / settings.width;
+        const y1 = settings.nodeFrequency / settings.height;
+        const deflection = 0.06;
+        let grid = {};
+
+        function randomNumber(min, max) {
+          return Math.ceil(Math.random() * (max - min) + min);
+        }
+
+        c.setAttribute("width", settings.width);
+        c.setAttribute("height", settings.height);
+
+        // Creating nodes
+        let x = 0;
+        for (let cursor = 0; ; cursor) {
+          if (x + x1 >= 0.98) {
+            break;
+          }
+          for (let y = 0; y < 1 - (y1 + deflection / 2);) {
+            if (typeof grid[cursor] !== "undefined") {
+              grid[cursor] = grid[cursor] + 1;
+            } else {
+              grid[cursor] = 0;
+            }
+
+            x = (x1 * cursor) + (deflection / randomNumber(1, 10));
+            y += y1 + (deflection / randomNumber(1, 10));
+
+            nodes.push({
+              label: `Node`,
+              x: x,
+              y: y
+            });
+          }
+          cursor += 1;
+        }
+
+        // Set the edges
+        let i = 0;
+        for (let index in grid) {
+          const column = grid[index];
+          for (let j = 0; j < column; j++) {
+            if (index > 0) {
+              const count = grid[index - 1];
+              let sourceNode = nodes[i + 1];
+              let targetNode = nodes[i - count];
+
+              if (grid[index - 1] >= grid[index]) {
+                // Node rank 2
+                edges.push({
+                  source: sourceNode,
+                  target: targetNode
+                });
+
+                // Node rank 3,4 possibility
+                if (randomNumber(1, 5) === 3) {
+                  sourceNode = nodes[i];
+                  targetNode = nodes[i - count];
+
+                  edges.push({
+                    source: sourceNode,
+                    target: targetNode
+                  });
+                }
+
+                // Multiple edges possibility
+                if (randomNumber(1, 10) === 3) {
+                  edges.push({
+                    source: targetNode,
+                    target: sourceNode
+                  });
+                }
+
+                // TODO : Workaround
+                if (j === 0) {
+                  sourceNode = nodes[i];
+                  targetNode = nodes[i - count - 1];
+                  edges.push({
+                    source: targetNode,
+                    target: sourceNode
+                  });
+                }
+              } else {
+                if (j < grid[index - 1])
+                  edges.push({
+                    source: sourceNode,
+                    target: targetNode
+                  });
+              }
+            }
+
+            let sourceNode = nodes[i];
+            let targetNode = nodes[i + 1];
+
+            if ((j + 1 === column)) {
+              i++
+            }
+
+            edges.push({
+              source: sourceNode,
+              target: targetNode
+            });
+
+            // Multiple edge possibility
+            if (randomNumber(1, 5) === 3) {
+              edges.push({
+                source: targetNode,
+                target: sourceNode
+              });
+            }
+            i++;
+          }
+        }
+
+        // Creating color gradients for animated node colors
+        // @s Start color [r,g,b]
+        // @e End color [r,g,b]
+        // @c Count count of color code int *Currently, have 70 frames per second, so we need to 35 colors.
+        function colorGradient(s, e, c, name) {
+          let start = s;
+          let end = e;
+          let alpha = 0.0;
+          let colors = {};
+
+          const len = c;
+
+          for (let i = 0; i < len; i++) {
+            let c = [];
+            let n = `${name}-${i}`;
+            let nr = `${name}-${len * 2 - (i + 1)}`
+            alpha += (1.0 / len);
+
+
+            c[0] = start[0] * alpha + (1 - alpha) * end[0];
+            c[1] = start[1] * alpha + (1 - alpha) * end[1];
+            c[2] = start[2] * alpha + (1 - alpha) * end[2];
+
+            colors[n] = { color: `rgb(${Math.abs(Math.floor(c[0]))},${Math.abs(Math.floor(c[1]))},${Math.abs(Math.floor(c[2]))})` };
+            colors[nr] = { color: `rgb(${Math.abs(Math.floor(c[0]))},${Math.abs(Math.floor(c[1]))},${Math.abs(Math.floor(c[2]))})` };
+          }
+          return colors;
+        }
+
+        let colorSlice = [
+          colorGradient([36, 82, 206], [50, 50, 50], 35, "blue"),
+          colorGradient([204, 34, 34], [50, 50, 50], 35, "red"),
+          colorGradient([35, 180, 70], [50, 50, 50], 35, "green")
+        ];
+
+        // ccNetViz config
+        let s = {
+          styles: {
+            background: {
+              color: "rgb(0, 0, 0)"
+            },
+            node: {
+              texture: "./static/img/circle.png",
+              label: {
+                hideSize: 16
+              },
+              color: "rgb(50, 50, 50)"
+            },
+            ccNetViz: {
+              color: "rgb(255, 255, 255)"
+            },
+            edge: {
+              color: "rgb(50, 50, 50)"
+            },
+            default: {
+              color: "rgb(50, 50, 50)"
+            }
+          }
+        };
+
+        // Pushing color gradients into ccNetViz config
+        for (let i = 0; i < colorSlice.length; i++) {
+          const color = colorSlice[i];
+          for (let key in color) {
+            s.styles[key] = color[key];
+          }
+        }
+
+
+        // Drawing graph
+        const graph = new ccNetViz(c, s);
+        const count = t.map(item => { return item[0].length }).reduce(function (a, b) { return a + b }, 0);
+
+        function transpose(arr) {
+          return arr.map((col, i) => arr.map(row => row[i]));
+        }
+
+        t = t.map(item => { return transpose(item) });
+
+        function matrixToGraph(text) {
+
+          const space = {
+            y: (8 / settings.height),
+            x: 6.80 / settings.width
+          };
+
+          const logoNodes = [];
+          let x1 = (1 - (count * space.x)) / 2;
+          for (let i = 0; i < text.length; i++) {
+            const letter = text[i];
+
+            for (let j = 0; j < letter.length; j++) {
+              const element = letter[j];
+              let y = (1 - (15 * space.y));
+
+              if (typeof letter[j][0] === "undefined") {
+                break;
+              }
+
+              for (let k = 0; k < element.length; k++) {
+                const row = element[k];
+                if (row === 1) {
+                  logoNodes.push({
+                    x: x1,
+                    y: y,
+                    style: "ccNetViz"
+                  })
+                }
+                y = y - space.y;
+              }
+              x1 = x1 + space.x;
+            }
+          }
+          return logoNodes;
+        }
+
+        const logo = matrixToGraph(t);
+        const nodeList = nodes.concat(nodes, logo);
+        const animation = {
+          frame: {
+            count: 0,
+            index: 0
+          },
+          fps: 10,
+          time: 7,
+          circle: {
+            size: {
+              minimum: 0.01,
+              maximum: 0.07,
+              raise: 0,
+              index: 0
+            },
+            color: {
+              code: undefined,
+              name: undefined
+            }
+          },
+        };
+
+        // Initial animation settings
+        animation.frame.count = animation.fps * animation.time;
+        animation.circle.size.raise = (animation.circle.size.maximum - animation.circle.size.minimum) / animation.frame.count;
+
+        graph.set(nodeList, edges);
+        graph.draw();
+
+        let animationInstances = [];
+        let r = [];
+
+        // Set the animation count
+        for (let i = 0; i < 5; i++) {
+          setTimeout(function () {
+            // Set every animation different config. Disable to the object reference.
+            animationInstances[i] = JSON.stringify(animation);
+            animationInstances[i] = JSON.parse(animationInstances[i]);
+            const color = randomNumber(0, 3);
+            const date = Date.now();
+
+            // Set the animated circle position
+            r[i] = {
+              x: Math.random(),
+              y: Math.random()
+            };
+
+            // Set the colors
+            if (color === 1) {
+              animationInstances[i].circle.color.name = "green";
+            } else if (color === 2) {
+              animationInstances[i].circle.color.name = "blue";
+            } else {
+              animationInstances[i].circle.color.name = "red";
+            }
+
+            // Draw animation
+            setInterval(function () {
+              if (animationInstances[i].frame.count === animationInstances[i].frame.index) {
+                r[i] = {
+                  x: Math.random(),
+                  y: Math.random()
+                };
+              }
+              pulse(animationInstances[i], r[i], date);
+            }, 1000 / animation.fps);
+          }, i * 2000);
+        }
+
+        function pulse(a, r, d) {
+          // When animation ended
+          if (a.frame.count === a.frame.index) {
+            a.frame.index = 0;
+            a.circle.size.index = 0;
+            a.circle.size.raise = (a.circle.size.maximum - a.circle.size.minimum) / a.frame.count;
+          }
+
+          a.circle.color.code = `${a.circle.color.name}-${a.frame.index}`;
+          a.frame.index++;
+          a.frame.index === 1 ? a.circle.size.index += a.circle.size.minimum : false;
+          a.circle.size.index += a.circle.size.raise;
+
+          let circle = graph.find(r.x, r.y, a.circle.size.index + 0.03, true, true);
+
+          // Re-enabling to the active nodes,edges
+          if (a.frame.count === a.frame.index) {
+            for (let index = 0; index < circle.nodes.length; index++) {
+              const element = circle.nodes[index];
+              if (element.node.style !== "ccNetViz") {
+                setTimeout(function () {
+                  element.node.animation_time = undefined;
+                }, 2000);
+                element.node.style = undefined;
+              }
+            }
+            for (let index = 0; index < circle.edges.length; index++) {
+              const element = circle.edges[index];
+              element.edge.style = undefined;
+              setTimeout(function () {
+                element.edge.animation_time = undefined;
+              }, 2000);
+            }
+          }
+
+          // Set the active color
+          for (let index = 0; index < circle.nodes.length; index++) {
+            const element = circle.nodes[index];
+            if (element.node.style !== "ccNetViz") {
+              if (typeof element.node.animation_time !== "undefined") {
+                if (element.node.animation_time >= d) {
+                  element.node.animation_time = d;
+                  element.node.style = a.circle.color.code;
+                }
+              } else {
+                element.node.animation_time = d;
+                element.node.style = a.circle.color.code;
+              }
+            }
+          }
+
+          for (let index = 0; index < circle.edges.length; index++) {
+            const element = circle.edges[index];
+            if (element.edge.t !== 1) {
+              if (typeof element.edge.animation_time !== "undefined") {
+                if (element.edge.animation_time >= d) {
+                  element.edge.animation_time = d;
+                  element.edge.style = a.circle.color.code;
+                }
+              } else {
+                element.edge.animation_time = d;
+                element.edge.style = a.circle.color.code;
+              }
+            }
+          }
+
+
+          graph.set(nodeList, edges);
+          graph.draw();
+        }
+
+        settings.information ? document.getElementById("stats").innerText = `${nodes.length} Nodes, ${edges.length} Edges` : false;
+        settings.information ? document.getElementById("range-slider").value = settings.nodeFrequency : false;
+      }
+
+      // Constant character definitions
+      const _c = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 0, 1, 1, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 1, 1, 0],
+        [0, 0, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1, 1, 1, 0, 0, 0]
+      ];
+
+      const _n = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+        [0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0]
+      ];
+
+      const _e = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
+        [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+      ];
+
+      const _t = [
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 1, 1, 0]
+      ];
+
+      const _v = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0],
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0],
+        [0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+      ];
+
+      const _i = [
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0]
+      ];
+
+      const _z = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+        [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 0]
+      ];
+
+      let text = [_c, _c, _n, _e, _t, _v, _i, _z];
+
+      const canvas = document.getElementById("ccnetviz");
+
+      const settings = {
+        width: document.getElementById("graph").offsetWidth,
+        height: document.getElementById("graph").offsetHeight,
+        nodeFrequency: 20,
+        information: true
+      };
+
+      drawLogo(canvas, settings, text);
+
+      document.getElementById("range-slider").addEventListener("change", function () {
+        document.getElementById("ccnetviz").remove();
+        let c = document.createElement("canvas");
+        c.id = "ccnetviz";
+        settings.nodeFrequency = this.value;
+        document.getElementById("graph").appendChild(c);
+        drawLogo(c, settings, text);
+      });
+    }, false);
+
+  </script>
 </head>
 
 <body>
@@ -25,7 +559,7 @@
           <a href="#about">About</a>
         </li>
         <li>
-          <a href="#usage">Usage</a>
+          <a href="#usage">Basic Example</a>
         </li>
         <li>
           <a href="#demos">Demos</a>
@@ -38,9 +572,14 @@
   </div>
   <div id="graph" class="row">
     <canvas id="ccnetviz"></canvas>
+    <div id="freq-information">
+      <label>Nodes</label>
+      <input type="range" min="10" max="80" id="range-slider">
+    </div>
+    <div id="stats"></div>
     <div id="graph-container" class="container">
       <div id="download" class="row">
-        <a class="offset-by-four columns four" href="/">Download</a>
+        <a class="offset-by-four columns four" href="https://github.com/helikarlab/ccNetViz/zipball/master" target="_blank">Download</a>
       </div>
       <div id="slogan" class="row">
         <div class="four columns">
@@ -87,11 +626,6 @@
         <div class="four columns">
           <div class="icon">
             <svg width="64" height="69" xmlns="http://www.w3.org/2000/svg">
-
-              <g>
-                <title>background</title>
-                <rect fill="none" id="canvas_background" height="71" width="66" y="-1" x="-1" />
-              </g>
               <g>
                 <title>Open Source</title>
                 <path fill="#FFFFFFCC" stroke-width="1" stroke="#FFFFFFCC" id="svg_3"
@@ -110,12 +644,15 @@
       <div id="description" class="row">
         <h5 id="about" class="row">ccNetViz</h5>
         <article class="row">
-          ccNetViz is a lightweight, high performance javascript library for large network graphs
-          visualization using WebGL.<br />
-          It enables custom styling of nodes and edges in css like way, curve edges, dynamic changes of the network,
-          force-directed layout and basic graph interactivity.<br />
-          Used for example by Cell Collective project.
-          ccNetViz is open source library available under GPLv3 License.<br />
+          <p>ccNetViz is a lightweight, high
+            performance javascript library for large network graphs (see <a
+              href="https://en.wikipedia.org/wiki/Graph_theory" rel="nofollow">graph theory</a>) visualization using
+            WebGL.
+            It enables custom styling of nodes and edges in css like way, curve edges, dynamic changes of the network,
+            force-directed layout and basic graph interactivity.
+            Used for example by <a href="http://cellcollective.org" rel="nofollow">Cell Collective</a> project.
+            ccNetViz is open source library available
+            under <a href="http://www.gnu.org/licenses/gpl-3.0.en.html" rel="nofollow">GPLv3</a> License.</p>
         </article>
       </div>
     </div>
@@ -123,31 +660,29 @@
   <div class="o-container">
     <div class="container">
       <div id="usage" class="row">
-        <h5 class="row">Usage</h5>
+        <h5 class="row">Basic Example</h5>
         <article class="usage-description">
-          Maecenas fermentum a justo a tristique. Nulla pretium purus vitae massa porta porttitor. Maecenas sodales odio
-          erat, a tincidunt ex scelerisque in. Curabitur et dictum dui, quis accumsan dui. Mauris in porta diam. In
-          vulputate consectetur facilisis.
-          <h6>HTML</h6>
-          <script src="https://gist.github.com/canerakdas/4eba5eb1b2609effee68785d92ada163.js"></script>
-          Maecenas fermentum a justo a tristique. Nulla pretium purus vitae massa porta porttitor. Maecenas sodales odio
-          erat, a tincidunt ex scelerisque in. Curabitur et dictum dui, quis accumsan dui. Mauris in porta diam. In
-          vulputate consectetur facilisis.<br /><br />
-          Curabitur et dictum dui, quis accumsan dui. Mauris in porta diam. In vulputate consectetur facilisis.
-
-          <h6>Javascript</h6>
-          <script src="https://gist.github.com/canerakdas/e2eb7ac12acf17df676bfcc8b91f3eee.js"></script>
-          Maecenas fermentum a justo a tristique. Nulla pretium purus vitae massa porta porttitor. Maecenas sodales odio
-          erat, a tincidunt ex scelerisque in. Curabitur et dictum dui, quis accumsan dui. Mauris in porta diam. In
-          vulputate consectetur facilisis.
-          <br />
-          <br />
-          Curabitur et dictum dui, quis accumsan dui. Mauris in porta diam. In
-          vulputate consectetur facilisis.
+          <script src="https://gist.github.com/canerakdas/fff1af5b24b9dc62829e36807d0ccbe8.js"></script>
+          <h6>In-built support for the multiple layouts</h6>
+          <div id="layout-information">
+            Recommended layout is <b>Force</b> based.<br>
+            Inbuilt support for multiple layouts such as the <b> Force</b>, <b>Hierarchical</b>, <b>Circular</b>,
+            <b>Spectral</b>, <b>Hive</b>, <b>Grid</b>,<b>Versinus</b>.<br>
+            Inbuilt support for two modifications of <b>Tree</b> layout.
+            <ul>
+              <li>Graph layouts</li>
+              <li>Tree-specific layouts</li>
+            </ul>
+            <p>If you want to use one of our in-built layout ( see the <a
+                href="https://github.com/HelikarLab/ccNetViz/tree/master/src/layout">https://github.com/HelikarLab/ccNetViz/tree/master/src/layout</a>
+              for list of all available ones ),
+              pass it as second parameter into the set function such as:</p>
+            <script src="https://gist.github.com/canerakdas/2ea1a305da82dc1182f859ab79c4d4d4.js"></script>
+          </div>
         </article>
       </div>
       <div id="demos" class="row">
-        <h5 class="row">Demos</h5>
+        <h5 class="row">Advanced Examples</h5>
         <article class="demos-description">
           Maecenas fermentum a justo a tristique. Nulla pretium purus vitae massa porta porttitor. Maecenas sodales odio
           erat, a tincidunt ex scelerisque in. Curabitur et dictum dui, quis accumsan dui. Mauris in porta diam. In
@@ -156,60 +691,112 @@
         <div id="demos-container">
           <div class="row">
             <div class="demo columns four">
-              <a href="/">
+              <a href="/examples/styles.html">
                 <div class="image-container">
-                  <img src="./static/img/graph.png" alt="Using SDF fonts" />
+                  <img src="./static/img/styles.png" alt="Advanced styling" />
                 </div>
-                <span>Using SDF fonts<a class="github" href="github">GitHub</a></span>
+                <span>Advanced styling<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/styles.html">GitHub</a></span>
               </a>
             </div>
             <div class="demo columns four">
-              <a href="/">
+              <a href="/examples/complex.html">
                 <div class="image-container">
-                  <img src="./static/img/graph.png" alt="Using SDF fonts" />
+                  <img src="./static/img/complex.png" alt="Complex graphs" />
                 </div>
-                <span>Using SDF fonts<a class="github" href="github">GitHub</a></span>
+                <span>Complex graphs<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/complex.html">GitHub</a></span>
               </a>
             </div>
             <div class="demo columns four">
-              <a href="/">
+              <a href="/examples/interactivity_hover.html">
                 <div class="image-container">
-                  <img src="./static/img/graph.png" alt="Using SDF fonts" />
+                  <img src="./static/img/hover.png" alt="Mouse event on hover" />
                 </div>
-                <span>Using SDF fonts<a class="github" href="github">GitHub</a></span>
+                <span>Mouse event on hover<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/interactivity_hover.html">GitHub</a></span>
               </a>
             </div>
           </div>
           <div class="row">
             <div class="demo columns four">
-              <a href="/">
+              <a href="/examples/interactivity_move.html">
                 <div class="image-container">
-                  <img src="./static/img/graph.png" alt="Using SDF fonts" />
+                  <img src="./static/img/move.png" alt="Mouse events on move" />
                 </div>
-                <span>Using SDF fonts<a class="github" href="github">GitHub</a></span>
+                <span>Mouse events on move<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/interactivity_move.html">GitHub</a></span>
               </a>
             </div>
+            <div class="demo columns four">
+              <a href="/examples/multi_level.html">
+                <div class="image-container">
+                  <img src="./static/img/multi.png" alt="Multi level" />
+                </div>
+                <span>Multi level<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/multi_level.html">GitHub</a></span>
+              </a>
+            </div>
+            <div class="demo columns four">
+              <a href="/examples/save_graph.html">
+                <div class="image-container">
+                  <img src="./static/img/save.png" alt="Save graphs" />
+                </div>
+                <span>Save graphs<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/save_graph.html">GitHub</a></span>
+              </a>
+            </div>
+          </div>
+          <div class="row">
+            <div class="demo columns four">
+              <a href="/examples/sdf.html">
+                <div class="image-container">
+                  <img src="./static/img/sdf.png" alt="Using SDF fonts" />
+                </div>
+                <span>Using SDF fonts<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/sdf.html">GitHub</a></span>
+              </a>
+            </div>
+            <div class="demo columns four">
+              <a href="/examples/userdef_layout.html">
+                <div class="image-container">
+                  <img src="./static/img/layout.png" alt="User definied layout" />
+                </div>
+                <span>User definied layout<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/userdef_layout.html">GitHub</a></span>
+              </a>
+            </div>
+            <div class="demo columns four">
+              <a href="/examples/edges_to_edges.html">
+                <div class="image-container">
+                  <img src="./static/img/edges.png" alt="Edges-to-edges support" />
+                </div>
+                <span>Edges-to-edges support<a class="github"
+                    href="https://github.com/HelikarLab/ccNetViz/blob/master/examples/edges_to_edges.html">GitHub</a></span>
+              </a>
+            </div>
+          </div>
+          <div class="row">
             <div class="demo columns four add-new-demo">
-              <div class="image-container">
-                <img src="./static/img/graph.png" alt="Using SDF fonts">
-              </div>
-              <div class="add-new-demo-title">Do you want to share your idea?<br /> Send <a
-                  class="add-new-demo-anchor">pull
-                  request</a> on GitHub</div>
+              <a href="https://github.com/HelikarLab/ccNetViz" target="_blank">
+                <div class="image-container">
+                  <img src="./static/img/graph.png" alt="Using SDF fonts">
+                </div>
+                <div class="add-new-demo-title">Do you want to share your idea?<br /> Send pull
+                  request on <b>GitHub</b></div>
+              </a>
             </div>
           </div>
         </div>
       </div>
       <div class="row" id="doc">
         <h5 class="row">Documentation</h5>
-        <h6>Config</h6>
+        <h6>ccNetViz(element, options)</h6>
         <article>
-          Mauris ut sapien convallis, pulvinar diam quis, tempus leo. In est risus, vestibulum sed sem a, venenatis
-          auctor
-          massa. Aliquam interdum ante a est lobortis, nec tristique augue euismod. Vestibulum ante ipsum primis in
-          faucibus orci luctus et ultrices posuere cubilia Curae; Sed ultrices est nisi, vitae laoreet velit cursus nec.
-          Duis cursus interdum massa, sed finibus dui ullamcorper sollicitudin
+          Creates new ccNetViz graph renderer attached to canvas element specified as first argument, styled with styles
+          defined in styles property of options parameter.
         </article>
+        <h6>Options</h6>
         <div class="documentation">
           <table>
             <tbody>
@@ -221,7 +808,7 @@
                 <td>styles</td>
                 <td>Object</td>
                 <td>Contains all of edge and node styles.</td>
-                <td><a href="#nodes">Node</a>, <a href="#edge">Edge</a> </td>
+                <td><a href="#node">Node</a>, <a href="#edge">Edge</a> Styles </td>
               </tr>
               <tr>
                 <td>onChangeViewport</td>
@@ -238,77 +825,310 @@
               <tr>
                 <td>getNodesCount</td>
                 <td>Function</td>
-                <td>callback to use if you want to force nodes count into this library (used to calculate curve
+                <td>Callback to use if you want to force nodes count into this library (used to calculate curve
                   excentricity and other built in options), expecting number as return value</td>
                 <td></td>
               </tr>
               <tr>
                 <td>getEdgesCount</td>
                 <td>Function</td>
-                <td>callback to use if you want to force edges count into this library (used to calculate curve
+                <td>Callback to use if you want to force edges count into this library (used to calculate curve
                   excentricity and other built in options), expecting number as return value</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>onDrag</td>
+                <td>Function</td>
+                <td>Drag event, disable original event in case of return false</td>
+                <td>viewport</td>
+              </tr>
+              <tr>
+                <td>onZoom</td>
+                <td>Function</td>
+                <td>Zoom event, disable original event in case of return false</td>
+                <td>viewport</td>
+              </tr>
+              <tr>
+                <td>onClick</td>
+                <td>Function</td>
+                <td>Called on click on graph</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>onDblClick</td>
+                <td>Function</td>
+                <td>Called on double click on graph</td>
+              </tr>
+              <tr>
+                <td>passiveEvts</td>
+                <td>Boolean</td>
+                <td>Make mouse events passive for performance reasons ( default false )</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h6>Edge and Node styles</h6>
+        <article>
+          There are three predefined styles:
+          <ul>
+            <li><b>node</b> Default style used for all nodes</li>
+            <li><b>edge</b> Default style used for all edges</li>
+            <li><b>background</b> Default style used for canvas background</li>
+          </ul>
+          Besides overriding default styles (used for all nodes/edges) it is possible to define custom styles and then
+          use this style just for specified subsets of nodes/edges. Property values specified for given custom style
+          override default style values.
+          <br>
+          <br>
+          When you want to use SDF (signed distance field) fonts, you can use one of our predefined style from
+          <a href="http://helikarlab.github.io/ccNetViz/fonts" rel="nofollow">our github io page</a> or generate your
+          own with
+          <a href="https://github.com/mapbox/node-fontnik">node-fontnik</a>.
+        </article>
+        <h6 id="node">Node</h6>
+        <div class="documentation">
+          <table>
+            <tbody>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Default</th>
+              <tr>
+                <td>minSize</td>
+                <td>Integer</td>
+                <td>Minimum size of node representation in pixels</td>
+                <td>6</td>
+              </tr>
+              <tr>
+                <td>maxSize</td>
+                <td>Integer</td>
+                <td>Maximum size of node representation in pixels</td>
+                <td>16</td>
+              </tr>
+              <tr>
+                <td>color</td>
+                <td>String</td>
+                <td>Node color (combined with node image)</td>
+                <td>rgb(255, 255, 255)</td>
+              </tr>
+              <tr>
+                <td>texture</td>
+                <td>String</td>
+                <td>Node image</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><a href="#label">label</a></td>
+                <td>Object</td>
+                <td>Node label</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h6 id="label">Node label</h6>
+        <div class="documentation">
+          <table>
+            <tbody>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Default</th>
+              <tr>
+                <td>hideSize</td>
+                <td>Integer</td>
+                <td>Minimum size (height) for the label to be displayed.</td>
+                <td>16</td>
+              </tr>
+              <tr>
+                <td>color</td>
+                <td>String</td>
+                <td>Label color.</td>
+                <td>rgb(120, 120, 120)</td>
+              </tr>
+              <tr>
+                <td>font</td>
+                <td>Object</td>
+                <td>Label font.</td>
                 <td></td>
               </tr>
             </tbody>
           </table>
         </div>
         <h6 id="edge">Edge</h6>
-        <article>
-          Mauris ut sapien convallis, pulvinar diam quis, tempus leo. In est risus, vestibulum sed sem a, venenatis
-          auctor
-          massa. Aliquam interdum ante a est lobortis, nec tristique augue euismod. Vestibulum ante ipsum primis in
-          faucibus orci luctus et ultrices posuere cubilia Curae; Sed ultrices est nisi, vitae laoreet velit cursus nec.
-          Duis cursus interdum massa, sed finibus dui ullamcorper sollicitudin
-        </article>
         <div class="documentation">
           <table>
             <tbody>
               <th>Name</th>
               <th>Type</th>
               <th>Description</th>
-              <th>Values</th>
+              <th>Default</th>
               <tr>
-                <td>styles</td>
+                <td>width</td>
+                <td>Integer</td>
+                <td>Edge width in pixels.</td>
+                <td>1</td>
+              </tr>
+              <tr>
+                <td>color</td>
+                <td>String</td>
+                <td>Edge color.</td>
+                <td>rgb(204, 204, 204)</td>
+              </tr>
+              <tr>
+                <td>type</td>
+                <td>String</td>
+                <td>Type of edge (Supported types - "line", "dashed", "dotted", "chain-dotted").</td>
+                <td>line</td>
+              </tr>
+              <tr>
+                <td><a href="#arrow">arrow</a></td>
                 <td>Object</td>
-                <td>Contains all of edge and node styles.</td>
-                <td><a href="#nodes">Node</a>, <a href="#edge">Edge</a> </td>
-              </tr>
-              <tr>
-                <td>onChangeViewport</td>
-                <td>Function</td>
-                <td>Called every time viewport changes.</td>
-                <td>viewport</td>
-              </tr>
-              <tr>
-                <td>onLoad</td>
-                <td>Function</td>
-                <td>Called when graph loaded</td>
-                <td></td>
-              </tr>
-              <tr>
-                <td>getNodesCount</td>
-                <td>Function</td>
-                <td>callback to use if you want to force nodes count into this library (used to calculate curve
-                  excentricity and other built in options), expecting number as return value</td>
-                <td></td>
-              </tr>
-              <tr>
-                <td>getEdgesCount</td>
-                <td>Function</td>
-                <td>callback to use if you want to force edges count into this library (used to calculate curve
-                  excentricity and other built in options), expecting number as return value</td>
+                <td>Edge arrow style</td>
                 <td></td>
               </tr>
             </tbody>
           </table>
         </div>
+        <h6 id="arrow">Edge Arrow</h6>
+        <div class="documentation">
+          <table>
+            <tbody>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Default</th>
+              <tr>
+                <td>minSize</td>
+                <td>Integer</td>
+                <td>Minimum size of arrow in pixels.</td>
+                <td>6</td>
+              </tr>
+              <tr>
+                <td>maxSize</td>
+                <td>Integer</td>
+                <td>Maximum size of arrow.</td>
+                <td>12</td>
+              </tr>
+              <tr>
+                <td>aspect</td>
+                <td>Integer</td>
+                <td>Aspect of arrow image.</td>
+                <td>1</td>
+              </tr>
+              <tr>
+                <td>texture</td>
+                <td>String</td>
+                <td>Arrow image.</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>hideSize</td>
+                <td>Integer</td>
+                <td>Minimum size of arrow to be displayed</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h6>Set <span class="usage-container">set(nodes, edges, layout)</span> </h6>
         <article>
-          Mauris ut sapien convallis, pulvinar diam quis, tempus leo. In est risus, vestibulum sed sem a, venenatis
-          auctor
-          massa. Aliquam interdum ante a est lobortis, nec tristique augue euismod. Vestibulum ante ipsum primis in
-          faucibus orci luctus et ultrices posuere cubilia Curae; Sed ultrices est nisi, vitae laoreet velit cursus nec.
-          Duis cursus interdum massa, sed finibus dui ullamcorper sollicitudin
+          Sets the data to be displayed by given ccNetViz instance.
+          <br>
+          <br>
+          "nodes" argument is an array of objects describing graph nodes. Each node can have following properties:
+          <div class="documentation">
+            <table>
+              <tbody>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Requirement</th>
+                <tr>
+                  <td>label</td>
+                  <td>Text label for given node (displayed if node labels are enabled by node label style)</td>
+                  <td>Optional</td>
+                </tr>
+                <tr>
+                  <td>x,y</td>
+                  <td>Predefined position for given node (if "layout" argument is not specified
+                    these positions will be used for graph layout)</td>
+                  <td>Optional</td>
+                </tr>
+                <tr>
+                  <td>color</td>
+                  <td>ccNetViz.color object defining color for this given node (use this in case of coloring each node
+                    separately, for coloring groups of nodes use color property of node style)
+                  </td>
+                  <td>Optional</td>
+                </tr>
+                <tr>
+                  <td>style</td>
+                  <td>Name of custom style class used for this node (for example: "nodeBlue" see
+                    above section for how to define custom styles)</td>
+                  <td>Optional</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          "edges" argument is an array of objects describing directed graph edges. Each edge has following properties:
+          <div class="documentation">
+            <table>
+              <tbody>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Requirement</th>
+                <tr>
+                  <td>source</td>
+                  <td>Pointer to given source node object.</td>
+                  <td>Required</td>
+                </tr>
+                <tr>
+                  <td>target</td>
+                  <td>Pointer to given target node object.</td>
+                  <td>Required</td>
+                </tr>
+                <tr>
+                  <td>style</td>
+                  <td>Name of custom style class used for this edge</td>
+                  <td>Optional</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          Optional "layout" argument defines layout used to render this graph. Possible values: "force", "random",
+          "circular", "tree". If not specified, positions are taken from each node x, y properties.
         </article>
+        <h6>Find <span class="usage-container">find(x, y, radius, nodes, edges)</span> </h6>
+        <article>Find the nodes and edges within the specified radius.</article>
+        <h6>Find Area<span class="usage-container">findArea(x1, y1, x2, y2, nodes, edges)</span> </h6>
+        <article>Find the nodes and edges within the specified area.</article>
+        <h6>Draw<span class="usage-container">draw()</span> </h6>
+        <article>Renders current data.</article>
+        <h6>Resize<span class="usage-container">resize()</span> </h6>
+        <article>Adjust graph for current canvas size.</article>
+        <h6>Reset View<span class="usage-container">resetView()</span> </h6>
+        <article>Reset zoom and panning.</article>
+        <h6>Set Viewport<span class="usage-container">setViewport(viewport)</span> </h6>
+        <article>
+          Set graph viewport.
+          <br>
+          <br>
+          "viewport" argument is an object with keys to modify (all of keys are optional)
+          <script src="https://gist.github.com/canerakdas/e8ba2538373e14d357c16036d9eee280.js"></script>
+        </article>
+        <h6>Shown node count<span class="usage-container">cntShownNodes()</span> </h6>
+        <article>Get number of nodes.</article>
+        <h6>Shown edge count<span class="usage-container">cntShownEdges()</span> </h6>
+        <article>Get number of edges.</article>
+        <h6>Remove<span class="usage-container">remove()</span> </h6>
+        <article>Clear graph and remove internal events from DOM.</article>
+        <h6>Nodes<span class="usage-container">nodes()</span> </h6>
+        <article>Property to access nodes data of given graph. Use this just to read current values, for modification
+          use "set" method instead.</article>
+        <h6>Edges<span class="usage-container">edges()</span> </h6>
+        <article>Property to access edges data of given graph. Use this just to read current values, for modification
+          use "set" method instead.</article>
       </div>
     </div>
   </div>

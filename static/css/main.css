@@ -75,6 +75,9 @@ article
 	color:#555;
 	margin-bottom:20px;
 }
+article ul{
+  padding-left: 10px;
+}
 
 div#download a.offset-by-four.columns.four
 {
@@ -275,3 +278,87 @@ div.documentation
 	font-size:14px;
 	color:#666;
 }
+#layout-information ul{
+  padding-left: 10px;
+}
+
+.image-container{
+  text-align: center;
+}
+
+.documentation table {
+    width: 100%;
+}
+
+span.usage-container {
+    color: #7ea7ca;
+    background: rgba(0,0,0,0.1);
+    padding: 5px;
+    border-radius: 2px;
+    margin-left: 5px;
+}
+
+    #graph {
+      text-align: center;
+      position: relative;
+    }
+
+    #stats {
+      position: absolute;
+      z-index: 55;
+      left: 5px;
+      bottom: 5px;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+    }
+
+    input#range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #000;
+      border: 1px solid rgb(255, 255, 255);
+      cursor: pointer;
+      transition: 0.5s ease all;
+    }
+
+    input#range-slider::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0px 3px rgba(255, 255, 255, 0.3);
+    }
+
+    input#range-slider {
+      -webkit-appearance: none;
+      width: 140px;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.7);
+      transition: 0.3s ease all;
+      outline: none;
+      border-radius: 2px;
+      position: relative;
+      top: 2px;
+    }
+
+    input#range-slider:hover {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    div#freq-information {
+      position: absolute;
+      bottom: 7px;
+      right: 5px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      font-family: 'Open Sans', sans-serif;
+      z-index: 2;
+    }
+
+    div#freq-information label {
+      display: inline-block;
+      position: relative;
+      top: 3px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+    }
