@@ -304,13 +304,13 @@ span.usage-container {
     }
 
     #stats {
-      position: absolute;
-      z-index: 55;
-      left: 5px;
-      bottom: 5px;
-      color: rgba(255, 255, 255, 0.7);
-      font-family: 'Open Sans', sans-serif;
-      font-size: 12px;
+position: absolute;
+    z-index: 2;
+    left: 5px;
+    bottom: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 12px;
     }
 
     input#range-slider::-webkit-slider-thumb {
