@@ -344,6 +344,7 @@ span.usage-container {
       border-radius: 2px;
       position: relative;
       top: 2px;
+      direction: rtl;
     }
 
     input#range-slider:hover {
